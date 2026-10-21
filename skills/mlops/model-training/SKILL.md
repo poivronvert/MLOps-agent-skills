@@ -1,12 +1,10 @@
 ---
 name: model-training
 description: >
-  Design and run ML model training pipelines with PyTorch, TensorFlow, scikit-learn, XGBoost, LightGBM, and
-  HuggingFace. Covers hyperparameter tuning (Optuna, Ray Tune, Bayesian optimization), distributed training
-  (DDP, DeepSpeed, FSDP, Horovod), mixed precision training (AMP, bf16), learning rate scheduling, early stopping,
-  checkpointing, cross-validation, GPU memory optimization (gradient accumulation, gradient checkpointing),
-  reproducibility, and config-driven training pipeline design. Use when training models, tuning hyperparameters,
-  setting up distributed training, or optimizing training performance.
+  Design, implement, and run ML training, tuning, and evaluation pipelines. Includes a
+  packaged tabular and temporal training entrypoint, plus guidance for custom training,
+  deep learning, distributed training, and optimization. Use when training models,
+  choosing an evaluation approach, or extending a training pipeline.
 license: Apache-2.0
 metadata:
   author: mlops-skills
@@ -15,6 +13,47 @@ metadata:
 ---
 
 # Model Training
+
+## Plan and execute training
+
+Read [Agent training](references/AGENT_TRAINING.md) before intake, proposing an evaluation,
+or executing training. It explains how to reuse confirmed context, inspect the shipped
+entrypoint, and implement and validate additional work. Built-in workflows are a starting
+point, not the limit of what the agent may develop. Prefer the existing entrypoint when
+it satisfies the request; otherwise assess composition or new implementation without
+silently changing the goal or treating missing prior tests as proof of impossibility.
+Users need not invoke solution-design, provide internal schemas, or request a specific API.
+
+The examples below are development references, not evidence that each workflow is already
+implemented or tested. Identify the executable path and validation needed for the actual
+proposal. Preserve preprocessing, time availability, holdout isolation, and honest result
+attribution across both existing and custom code.
+
+Resolve `scripts/run.py` relative to this loaded `SKILL.md`, then invoke its absolute path
+from the user's working directory. The installed skill includes its own `runtime/` source
+and lockfile; no repository checkout is needed. The launcher creates a locked environment
+in the user's cache. Keep data, task configurations and outputs in the user's workspace.
+MLflow model packaging is included in the core environment. Use `--extra forecasting` **before** `train` when forecasting capabilities
+are needed. Preserve the user's MLflow connection and multipart download settings.
+
+For remote runs, the built-in trainer passes its actual fold train/validation frames,
+final refit frame and any holdout frame to shared `agent_mlops.dataset_tracking`.
+Dataset inputs and selected Parquet snapshots are recorded and read back before the
+next fit/predict operation. `dataset_inputs` controls registration;
+`dataset_snapshots` independently selects training/validation/test uploads (all three
+by default; `[]` keeps metadata only). Tracking off performs no dataset uploads.
+Custom training must provide its actual features, labels, row ordering and split
+identity to the same helper or an equivalent verified implementation. Do not rebuild
+splits in tracking code or fabricate a test set when none was used.
+Document whether the recorded frame enters a preprocessing pipeline or the estimator.
+The built-in snapshots are pipeline inputs, with forecast history and feature roles
+described in the task spec; they are not post-transform estimator matrices.
+
+Dataset inputs are the primary usage record; do not add duplicate data-summary
+Run/Model Version tags. The parent records refit/holdout, direct trial children record
+CV folds. Readers follow these links without summing overlapping row counts. If inputs
+are disabled or absent, report them as unrecorded; do not reconstruct them from tags.
+See [the data handoff contract](../model-registry/references/ARTIFACT_CONTRACT.md#dataset-input-handoff).
 
 ## Overview
 
@@ -349,7 +388,8 @@ with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
 
 ## Scripts
 
-- `scripts/train_model.py` - Config-driven multi-framework training
+- `scripts/run.py` - Installed-skill entrypoint; isolated locked environment, training and reload
+- `scripts/train_model.py` - Lower-level tabular/event/forecast CLI for an already prepared environment
 - `scripts/distributed_train.py` - PyTorch DDP distributed training
 
 ## References
@@ -358,5 +398,5 @@ See [references/REFERENCE.md](references/REFERENCE.md) for framework comparisons
 
 ## Related skills
 
-**Upstream:** `feature-engineering` / `feature-store` (training-ready data) · **Downstream:** `model-registry` — package the artifact per the contract at `skills/mlops/model-registry/references/ARTIFACT_CONTRACT.md`
+**Upstream:** `feature-engineering` / `feature-store` (training-ready data) · **Downstream:** `model-registry` — when available and registry publication is requested, read its installed `references/ARTIFACT_CONTRACT.md`.
 **See also:** `ml-experiment-tracking` runs in parallel with every training job · `ml-cost-optimization` for GPU choice, spot, and mixed precision · retraining triggers arrive from `model-drift-detection`

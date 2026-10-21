@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-mlops"
+version = "0.1.0"
+description = "Reproducible tabular and temporal training for MLOps skills"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "numpy>=2.0,<3", "pandas>=2.2,<3", "scikit-learn>=1.6,<1.8",
+  "pydantic>=2.10,<3", "joblib>=1.4,<2", "PyYAML>=6,<7",
+  "optuna>=4,<5", "pyarrow>=19,<24", "mlflow-skinny>=3.17.1,<4",
+]
+
+[project.optional-dependencies]
+forecasting = ["mlforecast>=1.0,<1.1"]
+tracking = ["skops>=0.16,<0.17"] # sklearn wrapper uses the MLflow SDK's default format.
+xgboost = ["xgboost>=3,<4"]
+lightgbm = ["lightgbm>=4.6,<5"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
+
+[project.scripts]
+agent-mlops-train = "agent_mlops.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/agent_mlops"]
+markers = ["remote: requires a platform-provided HTTP(S) MLflow service", "forecasting: requires forecasting extra", "optional_models: requires xgboost/lightgbm extras"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.uv]
+required-version = "==0.11.6"

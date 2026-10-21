@@ -15,6 +15,86 @@ metadata:
 
 # ML Experiment Tracking
 
+## Tracking for the integrated training CLI
+
+For CSV/Parquet tabular, window-event or recursive forecast jobs, use
+[Agent training](../model-training/references/AGENT_TRAINING.md). Its shared
+`agent_mlops.tracking.Tracker` is an explicit off/HTTP(S)-remote client with preflight,
+parent/trial links, official MLflow models and stop-on-recording-failure behavior.
+Use platform-provided URI/authentication; do not deploy a server or silently select a local
+store. The administrative wrapper and generic examples below do not replace this contract.
+Training saves joblib predictors inside official Models From Code PythonModel artifacts
+and uses `mlflow.pyfunc.log_model` for remote runs.
+Load the returned model URI with `mlflow.pyfunc.load_model`; registration and aliases are
+separate operations. See Agent training for output schemas and failure states.
+
+### Generic wrapper model logging
+
+The standalone `scripts/mlflow_tracker.py` wrapper keeps the selected framework's MLflow
+flavor. Its sklearn branch (including unknown-model fallback) follows the SDK default:
+MLflow 3.17.1 uses skops outside Databricks. Install this repository's `tracking` extra
+alongside the needed model extras (`uv sync --extra tracking ...`); it declares skops.
+If using the script independently, supply compatible MLflow and skops dependencies in
+that environment. This dependency is separate from the built-in trainer's joblib artifact.
+
+`ExperimentTracker.log_model(..., serialization_format=None, skops_trusted_types=None)`
+accepts these keyword-only options for the sklearn branch. Omitting them retains SDK
+defaults; they are not forwarded to XGBoost or PyTorch. When skops rejects a type, review
+that type and explicitly supply the approved list. Never automatically trust all detected
+types, or silently retry using pickle/cloudpickle. An explicit SDK-supported format
+remains the caller's choice.
+With skops 0.16, even a fitted sklearn tree can require explicit review of
+`sklearn.tree._tree.Tree`; installing skops alone does not approve model types.
+
+Model logging failures, including missing skops, serialization and upload errors, are
+logged and re-raised. The wrapper does not own the caller's Run lifecycle. A caller that
+started a Run must mark it failed on an exception and must not report registration success:
+
+```python
+tracker.start_run(run_name="training")
+try:
+    tracker.log_model(model, input_example=X_example)
+except Exception:
+    tracker.end_run(status="FAILED")
+    raise
+else:
+    tracker.end_run(status="FINISHED")
+```
+
+Optional signature inference may still warn and proceed without a signature; this does
+not permit swallowing model logging failures.
+
+## Dataset inputs and snapshots
+
+For dataset lineage recorded during training and evaluation, read
+[Dataset tracking](references/DATASET_TRACKING.md).
+Dataset inputs are the primary usage record. Do not separately write dataset
+summary Run/Model Version tags; ordinary ownership, code and validation tags remain.
+Record each actual training, validation, and test split with its name, schema, target,
+context, source/version and full-content SHA-256. Include CV fold and trial identity;
+do not substitute the original unsplit file or infer membership from a random seed.
+The training/preprocessing code supplies the frames it uses. The shared tracking code
+must not split or transform them. Identify the boundary (pipeline inputs versus
+estimator tensors); preserve preprocessing/model artifacts needed to reproduce it.
+
+When supplying an MLflow Dataset `digest` manually, keep it within the MLflow 3.17.1
+limit of 36 characters. For a SHA-256-based digest, use the first 32 hexadecimal
+characters; never pass the full 64-character SHA-256 as `digest`. Retain the full
+hash in the Dataset input's `data.sha256` tag or the existing dataset manifest for
+verification. The shared tracking helper already follows this convention.
+
+Dataset input registration and full-data artifact uploads are independent policies.
+The integrated remote trainer defaults to both input registration and snapshots of
+training/validation/test splits; metadata-only is `dataset_snapshots: []`.
+Respect the selected contexts, storage access and data retention requirements.
+Autologging alone does not establish that all evaluation splits were recorded.
+Accept completion only after reading back input metadata and verifying selected
+snapshots by download, SHA-256, and frame equality. A recording failure stops further
+fit/predict work and remains visible in the report.
+
+Production ingestion, durable dataset versions, and retraining decisions have separate
+owners: see the dataset reference. A new data version need not launch training.
+
 ## Overview
 
 Experiment tracking is the systematic recording of ML experiments - hyperparameters,
@@ -68,9 +148,12 @@ with mlflow.start_run(run_name="baseline-v1") as run:
     # Log model (MLflow 3: use name= instead of positional artifact_path)
     mlflow.sklearn.log_model(model, name="model")
 
-    # Set tags
+    # These Dataset objects were constructed from the actual, already-selected splits.
+    mlflow.log_input(training_dataset, context="training")
+    mlflow.log_input(validation_dataset, context="validation")
+
+    # Run-level metadata
     mlflow.set_tag("team", "recommendation")
-    mlflow.set_tag("dataset_version", "v2.1")
 ```
 
 #### Auto-logging
@@ -170,10 +253,9 @@ print(comparison_df.to_string())
 
 ```python
 import mlflow
-import hashlib
 import subprocess
 
-def log_reproducibility_info():
+def log_reproducibility_info(dataset, context):
     """Log everything needed to reproduce an experiment."""
 
     # Code version
@@ -186,11 +268,8 @@ def log_reproducibility_info():
     mlflow.log_artifact("requirements.txt")
     mlflow.log_artifact("conda.yaml")
 
-    # Data fingerprint
-    data_hash = hashlib.md5(
-        open("data/train.parquet", "rb").read()
-    ).hexdigest()
-    mlflow.set_tag("data_hash", data_hash)
+    # Caller supplies the actual split with its source and digest, during this run.
+    mlflow.log_input(dataset, context=context)
 
     # Random seeds
     mlflow.log_param("random_seed", 42)

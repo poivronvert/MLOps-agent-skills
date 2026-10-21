@@ -13,46 +13,107 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Validate skill structure and SKILL.md schema
-        run: python tests/validate_skills.py --verbose
+      - run: python tests/validate_skills.py --verbose
+      - run: python scripts/package_model_training.py --check
 
   test-scripts:
-    name: Test Scripts (Python ${{ matrix.python-version }})
+    name: Locked BDD (${{ matrix.python-version }}, ${{ matrix.extras }})
     runs-on: ubuntu-latest
     needs: validate
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
+        extras: ["", "--extra forecasting --extra tracking --extra xgboost --extra lightgbm"]
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.6"
+          enable-cache: true
+      - name: Sync from lock
+        run: uv sync --locked --python '${{ matrix.python-version }}' --group dev ${{ matrix.extras }}
+      - name: Legacy script CLI checks
+        run: .venv/bin/python tests/test_scripts.py --verbose
+      - name: Behavioral tests (service acceptance is a separate job)
+        run: .venv/bin/python -m pytest -m 'not remote' --junitxml=validation.xml
+      - name: Train clean-environment fixtures
+        run: |
+          .venv/bin/python tests/agent_mlops/smoke.py --phase train --mode tabular --workspace "$RUNNER_TEMP/tabular"
+          .venv/bin/python tests/agent_mlops/smoke.py --phase train --mode future_event --workspace "$RUNNER_TEMP/event"
+          if [ -n '${{ matrix.extras }}' ]; then
+            .venv/bin/python tests/agent_mlops/smoke.py --phase train --mode forecast --workspace "$RUNNER_TEMP/forecast"
+          fi
+      - name: Create a second clean locked client and reload
+        env:
+          UV_PROJECT_ENVIRONMENT: .venv-reload
+        run: |
+          uv sync --locked --python '${{ matrix.python-version }}' --group dev ${{ matrix.extras }}
+          .venv-reload/bin/python tests/agent_mlops/smoke.py --phase reload --mode tabular --workspace "$RUNNER_TEMP/tabular"
+          .venv-reload/bin/python tests/agent_mlops/smoke.py --phase reload --mode future_event --workspace "$RUNNER_TEMP/event"
+          if [ -n '${{ matrix.extras }}' ]; then
+            .venv-reload/bin/python tests/agent_mlops/smoke.py --phase reload --mode forecast --workspace "$RUNNER_TEMP/forecast"
+          fi
+      - name: Lock must not change
+        run: git diff --exit-code -- uv.lock requirements-test.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bdd-${{ strategy.job-index }}
+          path: validation.xml
 
-      - name: Install dependencies
-        run: pip install -r requirements-test.txt
-
-      - name: Run --help tests on all scripts
-        run: python tests/test_scripts.py --verbose
+  remote-acceptance:
+    name: Platform MLflow service acceptance
+    if: github.event_name == 'workflow_dispatch' && vars.AGENT_MLOPS_TEST_TRACKING_URI != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.6"
+      - run: uv sync --locked --extra forecasting --extra tracking --group dev
+      - name: Clean download client
+        env:
+          UV_PROJECT_ENVIRONMENT: .venv-reload
+        run: uv sync --locked --extra forecasting --extra tracking --group dev
+      - name: Real SDK model logging and official reload
+        env:
+          AGENT_MLOPS_TEST_TRACKING_URI: ${{ vars.AGENT_MLOPS_TEST_TRACKING_URI }}
+          AGENT_MLOPS_TEST_EXPERIMENT: ${{ vars.AGENT_MLOPS_TEST_EXPERIMENT }}
+          MLFLOW_TRACKING_TOKEN: ${{ secrets.MLFLOW_TRACKING_TOKEN }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+          AGENT_MLOPS_CLEAN_CLIENT_PYTHON: ${{ github.workspace }}/.venv-reload/bin/python
+          MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD: ${{ vars.MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD || 'false' }}
+          MLFLOW_HTTP_REQUEST_TIMEOUT: "15"
+          MLFLOW_HTTP_REQUEST_MAX_RETRIES: "0"
+        run: .venv/bin/python -m pytest -m remote --junitxml=remote-validation.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remote-service-acceptance
+          path: remote-validation.xml
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install ruff
-        run: pip install ruff>=0.4
-
-      - name: Check for syntax errors and undefined names
-        run: ruff check skills/ --select E9,F63,F7,F82 --output-format github
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.6"
+      - run: uv sync --locked --group dev
+      - run: .venv/bin/ruff check skills/ --select E9,F63,F7,F82 --output-format github
+      - run: .venv/bin/ruff check src/ tests/agent_mlops/ tests/evaluate_agent_mlops_conversations.py --output-format github
+      - run: .venv/bin/ruff check scripts/package_model_training.py skills/mlops/model-training/scripts/run.py --output-format github

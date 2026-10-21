@@ -17,6 +17,16 @@ metadata:
 
 # ML Solution Design
 
+## Continuing an already-understood training task
+
+For a training request, reuse visible confirmations and ordinary data documentation.
+Follow [the training intake and execution reference](../model-training/references/AGENT_TRAINING.md)
+for A01–A11. Ask only about unknowns that change labels, sample grain, legal features or
+validation. Compute data facts with tools; exclude unnecessary unclear fields with reasons.
+Neither this skill, the full architecture checklist nor a formal EDA is a training prerequisite.
+A vague “predict equipment failure one hour ahead” needs event/window semantics before fit.
+
+
 ## Overview
 
 Solution design is step zero of every ML engagement: before writing a single pipeline, translate
@@ -37,8 +47,9 @@ frameworks, and reference architectures that map directly onto the other skills 
 
 ### 1. Requirements Intake Checklist
 
-Work through every row before proposing anything. Missing answers are risks, not gaps to fill
-with assumptions. Use `scripts/intake_questionnaire.py` to capture answers as `requirements.json`.
+For a new architecture engagement, use the relevant checklist rows and record unresolved risks.
+For an already-understood training task, use the focused intake above. `scripts/intake_questionnaire.py`
+can capture new engagement answers as `requirements.json`.
 
 | Area | Questions to answer | Red flags |
 |------|--------------------|-----------|
