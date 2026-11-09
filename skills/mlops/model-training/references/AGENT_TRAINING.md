@@ -303,6 +303,15 @@ and outputs, for example `execution_record.json`:
 - Execution status (`not_run`, `completed`, `failed`) separate from validation status
   (`unverified`, `passed`, `failed`), with the checks run and log locations.
 
+`scripts/execution_record.py` (standard library only) produces this record: `run` executes the
+command, keeps logs and frozen script/config copies, and hashes inputs, outputs and locks;
+`plan` records work not yet run; `check` attaches a validation command, and validation becomes
+`passed` only when the run completed and every check exited 0; `verify` re-hashes everything
+later. It records installed packages only from an interpreter passed with `--python`, never
+guessed from the command, since wrappers such as `run.py python`, `uv run` or `conda run`
+execute code elsewhere; for the bundled runtime, pass `--lock` with its `runtime/uv.lock`.
+Any equivalent record is fine; the fields above are what matters.
+
 Never put secrets in it. A syntax check does not verify an unexecuted run. `environment.json`
 does not cover workspace scripts. Report original training and custom results separately;
 preparation-only work is not a trained model and cannot borrow evidence from another run.
