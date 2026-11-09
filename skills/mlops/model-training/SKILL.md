@@ -3,8 +3,10 @@ name: model-training
 description: >
   Design, implement, and run ML training, tuning, and evaluation pipelines. Includes a
   packaged tabular and temporal training entrypoint, plus guidance for custom training,
-  deep learning, distributed training, and optimization. Use when training models,
-  choosing an evaluation approach, or extending a training pipeline.
+  deep learning, distributed training, and optimization. Covers temporal validation and
+  leakage prevention for time-series, forecasting, sensor/IoT and event-prediction data
+  (point-in-time features, label maturity, backtesting). Use when training models,
+  choosing an evaluation or split strategy, or extending a training pipeline.
 license: Apache-2.0
 metadata:
   author: mlops-skills
@@ -13,6 +15,13 @@ metadata:
 ---
 
 # Model Training
+
+## Time-ordered data
+
+If rows have a time order (forecasting, failure/event prediction, churn, sensors, logs),
+read [Temporal validation](references/TEMPORAL_VALIDATION.md) before building features or
+choosing a split, whatever framework you use. Random K-fold, ungrouped or unshifted
+rolling features, and immature labels are the most common sources of inflated scores.
 
 ## Plan and execute training
 
@@ -324,7 +333,8 @@ from sklearn.model_selection import cross_val_score, StratifiedKFold
 import xgboost as xgb
 import lightgbm as lgb
 
-# Cross-validation
+# Cross-validation: shuffled K-fold assumes exchangeable rows. For time-ordered data or
+# repeated entities, use time-based or grouped folds (references/TEMPORAL_VALIDATION.md).
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
 # XGBoost
@@ -382,7 +392,7 @@ with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
 5. **Use mixed precision** - Almost free speedup on modern GPUs
 6. **Gradient accumulation** before requesting more GPUs
 7. **Early stopping** to avoid overfitting and wasted compute
-8. **Cross-validate** for robust evaluation
+8. **Cross-validate** for robust evaluation, with folds that match deployment (time or entity splits when applicable)
 9. **Profile before optimizing** - Find actual bottlenecks first
 10. **Save checkpoints** regularly for crash recovery
 
@@ -394,7 +404,9 @@ with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
 
 ## References
 
-See [references/REFERENCE.md](references/REFERENCE.md) for framework comparisons and tuning guides.
+See [references/REFERENCE.md](references/REFERENCE.md) for framework comparisons and tuning guides,
+and [references/TEMPORAL_VALIDATION.md](references/TEMPORAL_VALIDATION.md) for temporal splits,
+feature availability, label maturity and leakage checks.
 
 ## Related skills
 
