@@ -1,6 +1,7 @@
 # Agent MLOps testing and acceptance
 
-Run from the repository root with Python 3.11–3.12 and uv 0.11.6.
+Run from the repository root with Python 3.11–3.12 and uv 0.11.6 or newer
+(CI pins 0.11.6, the validated version; `--locked` stops on an incompatible uv).
 Tests, rubrics and small deterministic fixtures belong in Git. Execution reports,
 JUnit outputs, environment receipts, actual agent sessions and generated artifacts
 remain local or in CI artifacts. `/docs/validation/agent-mlops/` is ignored;

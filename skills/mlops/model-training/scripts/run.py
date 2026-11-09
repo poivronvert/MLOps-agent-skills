@@ -6,7 +6,9 @@ Examples:
   python3 /installed/model-training/scripts/run.py --extra tracking train --config task.yaml
   python3 /installed/model-training/scripts/run.py python -c 'import agent_mlops'
 
-Requires uv 0.11.6 (on PATH or set UV_BIN) and Python 3.11/3.12.
+Requires uv 0.11.6 or newer (on PATH or set UV_BIN) and Python 3.11/3.12. CI validates
+0.11.6; any version runs with --locked, so a uv that cannot honor the bundled lock stops
+with an error instead of changing dependencies.
 """
 
 import argparse
@@ -21,6 +23,18 @@ import sys
 SKILL = Path(__file__).resolve().parents[1]
 RUNTIME = SKILL / "runtime"
 EXTRAS = ["forecasting", "tracking", "xgboost", "lightgbm"]
+MIN_UV = (0, 11, 6)
+
+
+def uv_version(output):
+    """Parse `uv --version` output such as 'uv 0.13.7 (abc 2026-01-01)'."""
+    words = output.split()
+    if len(words) < 2 or words[0] != "uv":
+        return None
+    try:
+        return tuple(int(part) for part in words[1].split("+")[0].split(".")[:3])
+    except ValueError:
+        return None
 
 
 def main():
@@ -35,13 +49,15 @@ def main():
         fallback = Path.home() / ".local/bin/uv"
         uv = str(fallback) if fallback.is_file() else None
     if not uv:
-        parser.error("Install uv 0.11.6 on PATH, or set UV_BIN to its executable")
+        parser.error("Install uv 0.11.6 or newer on PATH, or set UV_BIN to its executable")
     version = subprocess.run(
         [uv, "--version"], capture_output=True, text=True, check=True
     )
-    if version.stdout.split()[:2] != ["uv", "0.11.6"]:
+    found = uv_version(version.stdout)
+    if found is None or found < MIN_UV:
         parser.error(
-            "This skill requires uv 0.11.6; it will not update your dependencies"
+            f"This skill requires uv 0.11.6 or newer, found {version.stdout.strip()!r}; "
+            "it will not update your dependencies"
         )
 
     manifest_path = RUNTIME / "bundle_manifest.json"

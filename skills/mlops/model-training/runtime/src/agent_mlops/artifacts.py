@@ -67,7 +67,7 @@ def environment(spec):
     return {
         "python": platform.python_version(),
         "uv": uv_version,
-        "uv_required": "0.11.6",
+        "uv_required": ">=0.11.6",
         "extras": spec.extras,
         "groups": spec.groups,
         "available_optional_extras": [

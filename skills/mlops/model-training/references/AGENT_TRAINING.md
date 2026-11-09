@@ -138,7 +138,9 @@ The skill carries `runtime/src/agent_mlops`, `runtime/pyproject.toml`, `runtime/
 and a checksum manifest. It does not need a clone, a repository-relative command,
 `PYTHONPATH`, or a package installed into the user's project.
 
-Prerequisites: Python 3.11–3.12 and uv **0.11.6**. The launcher finds uv on PATH,
+Prerequisites: Python 3.11–3.12 and uv **0.11.6 or newer** (CI validates 0.11.6; the
+launcher always uses `--locked`, so an incompatible uv stops instead of re-resolving
+dependencies). The launcher finds uv on PATH,
 then `~/.local/bin/uv`, or uses an explicit `UV_BIN`. It defaults to Python 3.12;
 put `--python 3.11` before the command to select 3.11. The first call may download
 locked dependencies (and the selected Python if uv cannot find it locally).
@@ -169,6 +171,14 @@ entrypoint, use its launcher rather than plain `uv run` in the caller's project;
 `--locked` and do not silently change its dependencies. A damaged bundle needs reinstalling.
 Explicit custom project development can use its own reproducible dependency definition;
 the bundled lock is not a permanent restriction on that project's methods or packages.
+
+To extend or reuse the runtime, keep new code in the user's workspace rather than editing
+the installed skill (it may be shared by other projects, and the launcher rejects modified
+bundle files). `run.py python your_script.py` runs workspace code in the locked environment
+with `agent_mlops` importable, e.g. `agent_mlops.temporal` or
+`agent_mlops.dataset_tracking.record_split`. To change the runtime itself, copy
+`runtime/src/agent_mlops` into the workspace project under its own dependency definition;
+results then come from that code, not the bundled entrypoint, and are reported as such.
 
 Use the same launcher and extras for inspection or reload:
 

@@ -13,7 +13,7 @@ The existing training CLI now supports fold-local preprocessing, window-event cl
 recursive MLForecast, configurable Optuna, official MLflow model packaging and explicit off/remote tracking. Start with
 [the training workflow](skills/mlops/model-training/references/AGENT_TRAINING.md).
 Installed skills run from any working folder using their `scripts/run.py` launcher and
-bundled runtime. Use Python 3.11–3.12 and uv **0.11.6**; the launcher prepares a locked cache
+bundled runtime. Use Python 3.11–3.12 and uv **0.11.6 or newer** (CI validates 0.11.6); the launcher prepares a locked cache
 environment with the requested extras. For repository development, use `uv sync --locked --group dev`.
 Root `src/agent_mlops`, `pyproject.toml` / `uv.lock` are authoritative; `requirements-test.txt` is an
 automatically generated compatibility export. See [testing and acceptance](docs/testing/agent-mlops.md)
