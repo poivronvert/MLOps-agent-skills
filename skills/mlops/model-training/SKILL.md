@@ -401,6 +401,7 @@ with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
 - `scripts/run.py` - Installed-skill entrypoint; isolated locked environment, training and reload
 - `scripts/train_model.py` - Lower-level tabular/event/forecast CLI for an already prepared environment
 - `scripts/distributed_train.py` - PyTorch DDP distributed training
+- `scripts/check_split_leakage.py` - Framework-independent leakage checks on actual train/valid/test files (pandas only)
 
 ## References
 
