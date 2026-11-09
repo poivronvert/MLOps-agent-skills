@@ -2,7 +2,9 @@
 
 Read this before planning training or evaluation, including work beyond the shipped entrypoint.
 The internal `TaskSpec` is assembled by the agent; users and other skills need not
-produce this schema or invoke an analysis skill first.
+produce this schema or invoke an analysis skill first. For framework-independent temporal
+design (prediction time, availability, label maturity, split choice), see
+[Temporal validation](TEMPORAL_VALIDATION.md); this file covers the built-in entrypoint.
 
 ## Existing implementation, additional work, and evidence (CAP01–CAP12)
 
