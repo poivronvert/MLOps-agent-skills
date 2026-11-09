@@ -42,6 +42,8 @@ jobs:
         run: .venv/bin/python tests/test_scripts.py --verbose
       - name: Behavioral tests (service acceptance is a separate job)
         run: .venv/bin/python -m pytest -m 'not remote' --junitxml=validation.xml
+      - name: Skill script tests
+        run: .venv/bin/python -m pytest tests/skill_scripts --junitxml=skill-scripts.xml
       - name: Train clean-environment fixtures
         run: |
           .venv/bin/python tests/agent_mlops/smoke.py --phase train --mode tabular --workspace "$RUNNER_TEMP/tabular"
@@ -117,3 +119,4 @@ jobs:
       - run: .venv/bin/ruff check skills/ --select E9,F63,F7,F82 --output-format github
       - run: .venv/bin/ruff check src/ tests/agent_mlops/ tests/evaluate_agent_mlops_conversations.py --output-format github
       - run: .venv/bin/ruff check scripts/package_model_training.py skills/mlops/model-training/scripts/run.py --output-format github
+      - run: .venv/bin/ruff check skills/mlops/model-training/scripts/check_split_leakage.py tests/skill_scripts/ --output-format github
