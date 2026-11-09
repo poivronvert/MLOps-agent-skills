@@ -1,12 +1,12 @@
 ---
 name: model-training
 description: >
-  Design and run ML model training pipelines with PyTorch, TensorFlow, scikit-learn, XGBoost, LightGBM, and
-  HuggingFace. Covers hyperparameter tuning (Optuna, Ray Tune, Bayesian optimization), distributed training
-  (DDP, DeepSpeed, FSDP, Horovod), mixed precision training (AMP, bf16), learning rate scheduling, early stopping,
-  checkpointing, cross-validation, GPU memory optimization (gradient accumulation, gradient checkpointing),
-  reproducibility, and config-driven training pipeline design. Use when training models, tuning hyperparameters,
-  setting up distributed training, or optimizing training performance.
+  Design, implement, and run ML training, tuning, and evaluation pipelines. Includes a
+  packaged tabular and temporal training entrypoint, plus guidance for custom training,
+  deep learning, distributed training, and optimization. Covers temporal validation and
+  leakage prevention for time-series, forecasting, sensor/IoT and event-prediction data
+  (point-in-time features, label maturity, backtesting). Use when training models,
+  choosing an evaluation or split strategy, or extending a training pipeline.
 license: Apache-2.0
 metadata:
   author: mlops-skills
@@ -15,6 +15,44 @@ metadata:
 ---
 
 # Model Training
+
+## Time-ordered data
+
+If rows have a time order (forecasting, failure/event prediction, churn, sensors, logs),
+read [Temporal validation](references/TEMPORAL_VALIDATION.md) before building features or
+choosing a split, whatever framework you use. Random K-fold, ungrouped or unshifted
+rolling features, and immature labels are the most common sources of inflated scores.
+
+## Choosing an approach
+
+This skill ships a tested training entrypoint and guidance for writing your own code.
+Pick per request; the entrypoint is a starting point, not a limit.
+
+| Situation | Approach |
+|---|---|
+| CSV/Parquet tabular classification or regression with RF, SVM, XGBoost or LightGBM | Built-in entrypoint |
+| Classifying whether an event occurs in `(t, t+window]` per entity, on a regular time grid | Built-in entrypoint (`future_event`) |
+| Recursive multi-step RF forecast issued once at a test origin | Built-in entrypoint (`forecast`) |
+| Deep learning, other model families, direct or multi-output forecasting, repeated forecast reissue, custom losses or metrics, an existing project pipeline | Your own code, using the examples below and the guides in `references/` |
+| Built-in training plus extra evaluation or reporting | Entrypoint, then separate workspace scripts that load the saved model |
+
+To use the entrypoint, resolve `scripts/run.py` beside this `SKILL.md` and run it by absolute
+path from the user's working directory; `run.py train --describe-builtins` lists exactly what it
+implements. It needs uv 0.11.6 or newer and creates its own locked environment. Read
+[Built-in training entrypoint](references/AGENT_TRAINING.md) for intake, configuration,
+outputs, tracking and how to extend it.
+
+Whichever path you take:
+
+- Settle the prediction definition and validation design first; for time-ordered data follow
+  [Temporal validation](references/TEMPORAL_VALIDATION.md).
+- Fit preprocessing inside each training fold, keep the final test untouched, and compare
+  with a simple baseline on the same samples.
+- Report what was planned, executed and verified separately, and attribute results to the
+  code that produced them. The examples in this file are references, not evidence that a
+  workflow has been run.
+- When tracking with MLflow, record the actual splits as Dataset inputs; see the
+  `ml-experiment-tracking` skill's `references/DATASET_TRACKING.md`.
 
 ## Overview
 
@@ -32,6 +70,9 @@ production-grade training pipelines with reproducibility, scalability, and optim
 ## Step-by-Step Instructions
 
 ### 1. Config-Driven Training
+
+A generic pattern for your own training code. The built-in entrypoint uses its own
+`TaskSpec` schema instead (see references/AGENT_TRAINING.md).
 
 ```yaml
 # config/train_config.yaml
@@ -285,7 +326,8 @@ from sklearn.model_selection import cross_val_score, StratifiedKFold
 import xgboost as xgb
 import lightgbm as lgb
 
-# Cross-validation
+# Cross-validation: shuffled K-fold assumes exchangeable rows. For time-ordered data or
+# repeated entities, use time-based or grouped folds (references/TEMPORAL_VALIDATION.md).
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
 # XGBoost
@@ -343,20 +385,25 @@ with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
 5. **Use mixed precision** - Almost free speedup on modern GPUs
 6. **Gradient accumulation** before requesting more GPUs
 7. **Early stopping** to avoid overfitting and wasted compute
-8. **Cross-validate** for robust evaluation
+8. **Cross-validate** for robust evaluation, with folds that match deployment (time or entity splits when applicable)
 9. **Profile before optimizing** - Find actual bottlenecks first
 10. **Save checkpoints** regularly for crash recovery
 
 ## Scripts
 
-- `scripts/train_model.py` - Config-driven multi-framework training
+- `scripts/run.py` - Installed-skill entrypoint; isolated locked environment, training and reload
+- `scripts/train_model.py` - Lower-level tabular/event/forecast CLI for an already prepared environment
 - `scripts/distributed_train.py` - PyTorch DDP distributed training
+- `scripts/check_split_leakage.py` - Framework-independent leakage checks on actual train/valid/test files (pandas only)
+- `scripts/execution_record.py` - Record, check and verify what custom code actually executed (standard library only)
 
 ## References
 
-See [references/REFERENCE.md](references/REFERENCE.md) for framework comparisons and tuning guides.
+See [references/REFERENCE.md](references/REFERENCE.md) for framework comparisons and tuning guides,
+and [references/TEMPORAL_VALIDATION.md](references/TEMPORAL_VALIDATION.md) for temporal splits,
+feature availability, label maturity and leakage checks.
 
 ## Related skills
 
-**Upstream:** `feature-engineering` / `feature-store` (training-ready data) · **Downstream:** `model-registry` — package the artifact per the contract at `skills/mlops/model-registry/references/ARTIFACT_CONTRACT.md`
+**Upstream:** `feature-engineering` / `feature-store` (training-ready data) · **Downstream:** `model-registry` — when available and registry publication is requested, read its installed `references/ARTIFACT_CONTRACT.md`.
 **See also:** `ml-experiment-tracking` runs in parallel with every training job · `ml-cost-optimization` for GPU choice, spot, and mixed precision · retraining triggers arrive from `model-drift-detection`

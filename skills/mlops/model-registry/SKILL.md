@@ -50,10 +50,7 @@ client.update_model_version(
     version=result.version,
     description="XGBoost model trained on user behavior data v2.1"
 )
-client.set_model_version_tag(
-    name="recommendation-model", version=result.version,
-    key="dataset_version", value="v2.1"
-)
+# Dataset lineage stays on the training run's Dataset inputs.
 client.set_model_version_tag(
     name="recommendation-model", version=result.version,
     key="trained_by", value="ml-team"
@@ -185,30 +182,92 @@ def promote_model(model_name, version, target_alias="champion"):
 
 ### 5. Model Lineage
 
+Record Dataset inputs during training/evaluation from the actual splits. Registration
+and model cards read those records; they do not recreate inputs or copy dataset summaries
+into Run or Model Version tags. See [the data handoff contract](references/ARTIFACT_CONTRACT.md#dataset-input-handoff).
+Feature/code metadata and validation gates such as `data_validated` have separate purposes.
+
 ```python
-def log_model_lineage(run_id, data_source, feature_pipeline, model_config):
-    """Track complete lineage from data to model."""
-    with mlflow.start_run(run_id=run_id):
-        # Data lineage
-        mlflow.set_tag("data.source", data_source)
-        mlflow.set_tag("data.version", compute_data_hash(data_source))
-        mlflow.set_tag("data.row_count", str(get_row_count(data_source)))
-
-        # Feature lineage
-        mlflow.set_tag("features.pipeline_version", feature_pipeline.version)
-        mlflow.set_tag("features.feature_count", str(len(feature_pipeline.features)))
-
-        # Code lineage
-        mlflow.set_tag("code.git_commit", get_git_commit())
-        mlflow.set_tag("code.git_branch", get_git_branch())
-
-        # Environment
-        mlflow.log_artifact("requirements.txt")
+# During the active training run, alongside its Dataset inputs:
+mlflow.set_tag("features.pipeline_version", feature_pipeline.version)
+mlflow.set_tag("features.feature_count", str(len(feature_pipeline.features)))
+mlflow.set_tag("code.git_commit", get_git_commit())
+mlflow.set_tag("code.git_branch", get_git_branch())
+mlflow.log_artifact("requirements.txt")
 ```
 
 ### 6. Model Card Generation
 
+This read-only example covers the model's run and its direct trial children in the
+same experiment, including failed/deleted trials. Each run is labeled separately;
+fold inputs describe trial usage, not additional rows of the final training set.
+The built-in trainer uses this two-level structure. Custom deeper hierarchies need
+an explicitly scoped reader. Missing inputs stay unrecorded, even if legacy data tags
+exist. Query failures propagate; callers must report failure rather than a complete card.
+
 ```python
+import html
+import json
+
+from mlflow.entities import ViewType
+from mlflow.tracking import MlflowClient
+
+
+def card_cell(value):
+    if value is None or value == "":
+        return "unknown"
+    return html.escape(str(value)).replace("|", "&#124;").replace("\n", "<br>")
+
+
+def dataset_sections(client, root):
+    runs = [root]
+    token = None
+    while True:
+        page = client.search_runs(
+            [root.info.experiment_id],
+            filter_string=f"tags.mlflow.parentRunId = '{root.info.run_id}'",
+            run_view_type=ViewType.ALL,
+            max_results=1000,
+            page_token=token,
+        )
+        runs.extend(client.get_run(child.info.run_id) for child in page)
+        token = page.token
+        if not token:
+            break
+
+    sections = []
+    for run in runs:
+        name = run.data.tags.get("mlflow.runName", run.info.run_id)
+        sections.append(
+            f"\n### Run {card_cell(name)} ({run.info.run_id})"
+            f" — {run.info.status}, {run.info.lifecycle_stage}\n"
+        )
+        inputs = run.inputs.dataset_inputs if run.inputs else []
+        if not inputs:
+            sections.append("Dataset inputs not recorded.\n")
+            continue
+        sections.append(
+            "| Dataset / fold | Context | Digest | Rows | Source type | Source |\n"
+            "|---|---|---|---|---|---|\n"
+        )
+        for item in inputs:
+            dataset = item.dataset
+            tags = {tag.key: tag.value for tag in item.tags}
+            try:
+                profile = json.loads(dataset.profile or "{}")
+            except (ValueError, TypeError):
+                profile = {}
+            rows = profile.get("num_rows") if isinstance(profile, dict) else None
+            if type(rows) is not int or rows < 0:
+                rows = None
+            values = [
+                dataset.name, tags.get("mlflow.data.context"), dataset.digest,
+                rows, dataset.source_type, dataset.source,
+            ]
+            sections.append("| " + " | ".join(card_cell(v) for v in values) + " |\n")
+    return "".join(sections)
+
+
 def generate_model_card(model_name, version):
     """Generate a model card for documentation and governance."""
     client = MlflowClient()
@@ -225,9 +284,7 @@ def generate_model_card(model_name, version):
 - **Owner**: {run.data.tags.get('trained_by', 'unknown')}
 
 ## Training Data
-- **Source**: {run.data.tags.get('data.source', 'N/A')}
-- **Version**: {run.data.tags.get('data.version', 'N/A')}
-- **Rows**: {run.data.tags.get('data.row_count', 'N/A')}
+{dataset_sections(client, run)}
 
 ## Performance Metrics
 """

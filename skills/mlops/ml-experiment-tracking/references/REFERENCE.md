@@ -89,7 +89,7 @@ Run name:    <model>_<date>_<desc>      e.g., xgboost_20240315_tuned_lr
 ```python
 mlflow.set_tags({
     "team": "ml-platform", "project": "fraud_detection",
-    "data_version": "v2.3", "feature_set": "feature_store_v5",
+    "feature_set": "feature_store_v5",
 })
 ```
 
@@ -97,8 +97,20 @@ mlflow.set_tags({
 |----------------|--------------------------------------------|--------------------------------------------------|
 | **Experiment** | Groups runs for a specific task            | `churn/binary_classifier`                        |
 | **Run**        | Single training execution                  | `xgboost_lr01_depth6`                            |
-| **Tags**       | Cross-cutting metadata for filtering       | `data_version=v3`, `team=risk`                   |
+| **Tags**       | Run-level metadata for filtering          | `team=risk`, `project=fraud_detection`           |
+| **Dataset inputs** | Actual data used by a run             | name, context, source, digest, schema/profile   |
 | **Nested Runs**| Group related runs (CV folds, sweeps)      | Parent: `hp_search`, Children: individual trials |
+
+Dataset usage follows [Dataset tracking](DATASET_TRACKING.md); do not copy its
+summary into Run or Model Version tags. The wrapper no longer maps `DATA_VERSION`
+to a `data_version` Run tag. Supply an immutable source/version for each actual
+dataset when it is constructed.
+
+`experiment_compare.fetch_runs(tag_filters=...)` still filters Run tags only; it
+does not search Dataset inputs. Existing data-tag filters will not match new runs
+that omit those tags. Read `client.get_run(run_id).inputs.dataset_inputs` for data
+usage; keep ordinary tag filters and historical tags intact. No dataset-search CLI
+is added. The wrapper's run listings still return generic tags, not a dataset summary.
 
 ---
 

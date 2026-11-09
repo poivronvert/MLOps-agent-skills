@@ -3,3 +3,10 @@ __pycache__/
 *.pyo
 .claude/
 .DS_Store
+.venv*/
+.pytest_cache/
+.ruff_cache/
+dist/
+/docs/validation/agent-mlops/
+/docs/planning/agent-mlops/
+/examples/equipment_fault_24h/

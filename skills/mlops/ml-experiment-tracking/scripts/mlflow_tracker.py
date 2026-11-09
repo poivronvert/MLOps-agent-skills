@@ -56,7 +56,7 @@ def _import_mlflow():
         from mlflow.tracking import MlflowClient
         return mlflow, MlflowClient
     except ImportError:
-        logger.error("mlflow is required: pip install mlflow")
+        logger.error("MLflow client is required: uv sync --locked --extra tracking --group dev")
         sys.exit(1)
 
 
@@ -109,10 +109,6 @@ def default_tags() -> Dict[str, str]:
     git_hash = _get_git_hash()
     if git_hash:
         tags["git_commit"] = git_hash
-
-    data_version = os.environ.get("DATA_VERSION")
-    if data_version:
-        tags["data_version"] = data_version
 
     env_name = os.environ.get("CONDA_DEFAULT_ENV") or os.environ.get("VIRTUAL_ENV")
     if env_name:
@@ -177,9 +173,15 @@ class ExperimentTracker:
     # -- model logging with signature inference ----------------------------
 
     def log_model(self, model: Any, artifact_path: str = "model",
-                  input_example: Any = None) -> None:
-        """Log a model with automatic flavour detection and signature inference."""
-        np = _import_numpy()
+                  input_example: Any = None, *,
+                  serialization_format: Optional[str] = None,
+                  skops_trusted_types: Optional[List[str]] = None) -> None:
+        """Log a model, propagating failures without changing the caller's run.
+
+        Serialization options apply only to the sklearn flavour. Omitted options
+        preserve MLflow's defaults; trusted types must be explicitly reviewed by
+        the caller. Signature inference remains best-effort.
+        """
         try:
             from mlflow.models.signature import infer_signature
         except ImportError:
@@ -197,11 +199,17 @@ class ExperimentTracker:
         # Detect framework and log accordingly
         # MLflow 3: positional artifact_path is deprecated; pass name= instead
         model_type = type(model).__module__.split(".")[0] if hasattr(type(model), "__module__") else ""
+        sklearn_options = {}
+        if serialization_format is not None:
+            sklearn_options["serialization_format"] = serialization_format
+        if skops_trusted_types is not None:
+            sklearn_options["skops_trusted_types"] = skops_trusted_types
         try:
             if "sklearn" in model_type or "sklearn" in str(type(model)):
                 self.mlflow.sklearn.log_model(model, name=artifact_path,
                                               signature=signature,
-                                              input_example=input_example)
+                                              input_example=input_example,
+                                              **sklearn_options)
             elif "xgboost" in model_type:
                 self.mlflow.xgboost.log_model(model, name=artifact_path,
                                               signature=signature,
@@ -209,13 +217,20 @@ class ExperimentTracker:
             elif "torch" in model_type:
                 self.mlflow.pytorch.log_model(model, name=artifact_path)
             else:
-                # Fallback: try sklearn flavour, then pickle
+                # Unknown frameworks use sklearn's flavour without a format retry.
                 self.mlflow.sklearn.log_model(model, name=artifact_path,
                                               signature=signature,
-                                              input_example=input_example)
+                                              input_example=input_example,
+                                              **sklearn_options)
             logger.info("Logged model to '%s'", artifact_path)
         except Exception as exc:
+            if isinstance(exc, ModuleNotFoundError) and exc.name == "skops":
+                logger.error(
+                    "The sklearn skops format requires skops: "
+                    "uv sync --locked --extra tracking --group dev"
+                )
             logger.error("Failed to log model: %s", exc)
+            raise
 
     # -- artifact helpers --------------------------------------------------
 

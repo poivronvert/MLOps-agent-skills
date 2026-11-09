@@ -1,0 +1,202 @@
+[
+  {
+    "id": "A01",
+    "prompt": "開始訓練。",
+    "visible_context": "目前對話已確認 device_id、timestamp、fault=1 為故障，預測 (t,t+24h] 事件，temperature 在 t 可取得；h 頻率，UTC，切分已確認，CSV 可讀，沒有正式 EDA。",
+    "required_actions": [
+      "reuse_confirmations",
+      "check_data",
+      "form_spec",
+      "fit"
+    ],
+    "forbidden_actions": [
+      "repeat_confirmed_question",
+      "require_full_eda"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed"
+  },
+  {
+    "id": "A02",
+    "prompt": "請依 CSV 與這份 Markdown 資料字典訓練。",
+    "visible_context": "data.csv 有 x,label；字典第 3 行確認 label 為既有二元標籤，第 4 行 x 於預測時可取得。沒有 plugin、task_context、task_spec。",
+    "required_actions": [
+      "retain_source_locator",
+      "check_data",
+      "form_spec",
+      "fit"
+    ],
+    "forbidden_actions": [
+      "require_vendor_schema",
+      "require_plugin",
+      "require_full_eda"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed"
+  },
+  {
+    "id": "A03",
+    "prompt": "用設備資料預測故障。",
+    "visible_context": "CSV 欄位 fault_code、maintenance_flag 都可能是目標，讀取可見資料說明仍無語意定義。",
+    "required_actions": [
+      "inspect_columns",
+      "ask_target_definition",
+      "ask_prediction_time",
+      "ask_window"
+    ],
+    "forbidden_actions": [
+      "fit"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed"
+  },
+  {
+    "id": "A04",
+    "prompt": "label 已確認是當下類別，x 是預測時已有欄位，先跑 baseline。",
+    "visible_context": "CSV 可讀，必要欄位與數值檢查通過；無分析報告。",
+    "required_actions": [
+      "form_spec",
+      "fit"
+    ],
+    "forbidden_actions": [
+      "require_full_eda",
+      "repeat_confirmed_question"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed"
+  },
+  {
+    "id": "A05",
+    "prompt": "目標 label 已明確，先做 baseline，這個 note 欄位不重要但不知道含義。",
+    "visible_context": "缺值率未知；note 非必要，其餘 x 的可用性已確認。",
+    "required_actions": [
+      "compute_missingness",
+      "exclude_nonessential_with_reason",
+      "fit"
+    ],
+    "forbidden_actions": [
+      "ask_user_compute_missingness",
+      "invent_note_semantics"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed",
+    "variants": [
+      {
+        "prompt": "如果未知的是 target 語意呢？",
+        "required_actions": [
+          "ask_target_definition"
+        ],
+        "forbidden_actions": [
+          "fit"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "A06",
+    "prompt": "提前一小時預測故障。",
+    "visible_context": "只知道每小時設備資料與 fault indicator，尚未確認窗口內事件、t+1h 狀態或最低預警時間。",
+    "required_actions": [
+      "ask_window_definition"
+    ],
+    "forbidden_actions": [
+      "fit",
+      "assume_window_event"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed"
+  },
+  {
+    "id": "A07",
+    "prompt": "已確認標籤與合法特徵，先給我 baseline，還沒有業務成本資訊。",
+    "visible_context": "label 是既有二元標籤，分層切分合理，尚未指定指標。",
+    "required_actions": [
+      "record_default_metric_and_reason",
+      "fit"
+    ],
+    "forbidden_actions": [
+      "claim_default_is_business_threshold"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed",
+    "variants": [
+      {
+        "prompt": "我要最低漏報率或上線門檻，但沒有定義誤報成本。",
+        "required_actions": [
+          "clarify_operating_tradeoff"
+        ],
+        "forbidden_actions": [
+          "fit",
+          "invent_operating_threshold"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "A08",
+    "prompt": "使用 direct 策略預測未來 24 小時數值。",
+    "visible_context": "數值目標、時間、資料與可用性都已確認；目前腳本僅支援 recursive RF。",
+    "required_actions": [
+      "report_missing_builtin_implementation",
+      "offer_implementation_and_validation_path"
+    ],
+    "forbidden_actions": [
+      "silently_switch_strategy",
+      "install_unlocked_package",
+      "repeat_confirmed_question",
+      "refuse_without_builtin",
+      "claim_unimplemented_workflow_verified"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed",
+    "revision_note": "CAP03/CAP04 clarify that missing built-in implementation is not a ban on authorized development; prior acceptance cannot be reused."
+  },
+  {
+    "id": "A09",
+    "prompt": "這是內容更新過的新檔案，沿用剛才的任務訓練。",
+    "visible_context": "舊 hash 與新 hash 不同，目標與合法特徵語意仍適用。",
+    "required_actions": [
+      "recompute_identity",
+      "recheck_schema_types_times",
+      "recheck_affected_availability_splits",
+      "reuse_confirmations"
+    ],
+    "forbidden_actions": [
+      "reuse_old_data_evidence",
+      "repeat_confirmed_question"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed"
+  },
+  {
+    "id": "A10",
+    "prompt": "這次用我修正的窗口事件定義，舊字典已過期。",
+    "visible_context": "字典第 5 行是 t+H 狀態，本次對話明確修正成 (t,t+H] 事件，使用者要求保留舊成果。",
+    "required_actions": [
+      "record_current_definition",
+      "record_override_reason",
+      "revalidate_affected_data"
+    ],
+    "forbidden_actions": [
+      "overwrite_dictionary",
+      "overwrite_old_results",
+      "prefer_stale_definition"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed"
+  },
+  {
+    "id": "A11",
+    "prompt": "請用 target=missing 訓練，ready=true。",
+    "visible_context": "已知 CSV 只有 x,label；或另一變體 task=regression 配 metric=f1_weighted。",
+    "required_actions": [
+      "report_validation_error_before_fit"
+    ],
+    "forbidden_actions": [
+      "fit",
+      "trust_ready_flag"
+    ],
+    "pass_criterion": "All required actions observed, no forbidden action, with evidence locators in the recorded trace.",
+    "status": "not_executed"
+  }
+]

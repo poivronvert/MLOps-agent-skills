@@ -177,9 +177,10 @@ Raw Data --> Processed Data --> Features --> Training Run --> Model --> Deployme
 ```python
 import mlflow
 
+# Inside the training job: inputs already constructed from its actual splits.
 with mlflow.start_run():
-    mlflow.set_tag("data.version", "v2.3.0")
-    mlflow.set_tag("data.hash", "sha256:abc123...")
+    mlflow.log_input(training_dataset, context="training")
+    mlflow.log_input(validation_dataset, context="validation")
     mlflow.set_tag("mlflow.source.git.commit", "def456...")
     mlflow.log_artifact("requirements.txt")
 
@@ -187,6 +188,11 @@ with mlflow.start_run():
     signature = infer_signature(X_test, predictions)
     mlflow.sklearn.log_model(model, "model", signature=signature)
 ```
+
+Use version-pinned sources when constructing each dataset; its digest is not an
+external version ID. Log only splits actually used. Registration and model cards
+read existing inputs, without adding data-summary Run/Model Version tags or
+backfilling older runs. See [Dataset input handoff](ARTIFACT_CONTRACT.md#dataset-input-handoff).
 
 ## Common Pitfalls
 
