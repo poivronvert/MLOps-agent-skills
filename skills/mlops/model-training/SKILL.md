@@ -23,46 +23,36 @@ read [Temporal validation](references/TEMPORAL_VALIDATION.md) before building fe
 choosing a split, whatever framework you use. Random K-fold, ungrouped or unshifted
 rolling features, and immature labels are the most common sources of inflated scores.
 
-## Plan and execute training
+## Choosing an approach
 
-Read [Agent training](references/AGENT_TRAINING.md) before intake, proposing an evaluation,
-or executing training. It explains how to reuse confirmed context, inspect the shipped
-entrypoint, and implement and validate additional work. Built-in workflows are a starting
-point, not the limit of what the agent may develop. Prefer the existing entrypoint when
-it satisfies the request; otherwise assess composition or new implementation without
-silently changing the goal or treating missing prior tests as proof of impossibility.
-Users need not invoke solution-design, provide internal schemas, or request a specific API.
+This skill ships a tested training entrypoint and guidance for writing your own code.
+Pick per request; the entrypoint is a starting point, not a limit.
 
-The examples below are development references, not evidence that each workflow is already
-implemented or tested. Identify the executable path and validation needed for the actual
-proposal. Preserve preprocessing, time availability, holdout isolation, and honest result
-attribution across both existing and custom code.
+| Situation | Approach |
+|---|---|
+| CSV/Parquet tabular classification or regression with RF, SVM, XGBoost or LightGBM | Built-in entrypoint |
+| Classifying whether an event occurs in `(t, t+window]` per entity, on a regular time grid | Built-in entrypoint (`future_event`) |
+| Recursive multi-step RF forecast issued once at a test origin | Built-in entrypoint (`forecast`) |
+| Deep learning, other model families, direct or multi-output forecasting, repeated forecast reissue, custom losses or metrics, an existing project pipeline | Your own code, using the examples below and the guides in `references/` |
+| Built-in training plus extra evaluation or reporting | Entrypoint, then separate workspace scripts that load the saved model |
 
-Resolve `scripts/run.py` relative to this loaded `SKILL.md`, then invoke its absolute path
-from the user's working directory. The installed skill includes its own `runtime/` source
-and lockfile; no repository checkout is needed. The launcher creates a locked environment
-in the user's cache. Keep data, task configurations and outputs in the user's workspace.
-MLflow model packaging is included in the core environment. Use `--extra forecasting` **before** `train` when forecasting capabilities
-are needed. Preserve the user's MLflow connection and multipart download settings.
+To use the entrypoint, resolve `scripts/run.py` beside this `SKILL.md` and run it by absolute
+path from the user's working directory; `run.py train --describe-builtins` lists exactly what it
+implements. It needs uv 0.11.6 or newer and creates its own locked environment. Read
+[Built-in training entrypoint](references/AGENT_TRAINING.md) for intake, configuration,
+outputs, tracking and how to extend it.
 
-For remote runs, the built-in trainer passes its actual fold train/validation frames,
-final refit frame and any holdout frame to shared `agent_mlops.dataset_tracking`.
-Dataset inputs and selected Parquet snapshots are recorded and read back before the
-next fit/predict operation. `dataset_inputs` controls registration;
-`dataset_snapshots` independently selects training/validation/test uploads (all three
-by default; `[]` keeps metadata only). Tracking off performs no dataset uploads.
-Custom training must provide its actual features, labels, row ordering and split
-identity to the same helper or an equivalent verified implementation. Do not rebuild
-splits in tracking code or fabricate a test set when none was used.
-Document whether the recorded frame enters a preprocessing pipeline or the estimator.
-The built-in snapshots are pipeline inputs, with forecast history and feature roles
-described in the task spec; they are not post-transform estimator matrices.
+Whichever path you take:
 
-Dataset inputs are the primary usage record; do not add duplicate data-summary
-Run/Model Version tags. The parent records refit/holdout, direct trial children record
-CV folds. Readers follow these links without summing overlapping row counts. If inputs
-are disabled or absent, report them as unrecorded; do not reconstruct them from tags.
-See [the data handoff contract](../model-registry/references/ARTIFACT_CONTRACT.md#dataset-input-handoff).
+- Settle the prediction definition and validation design first; for time-ordered data follow
+  [Temporal validation](references/TEMPORAL_VALIDATION.md).
+- Fit preprocessing inside each training fold, keep the final test untouched, and compare
+  with a simple baseline on the same samples.
+- Report what was planned, executed and verified separately, and attribute results to the
+  code that produced them. The examples in this file are references, not evidence that a
+  workflow has been run.
+- When tracking with MLflow, record the actual splits as Dataset inputs; see the
+  `ml-experiment-tracking` skill's `references/DATASET_TRACKING.md`.
 
 ## Overview
 
@@ -80,6 +70,9 @@ production-grade training pipelines with reproducibility, scalability, and optim
 ## Step-by-Step Instructions
 
 ### 1. Config-Driven Training
+
+A generic pattern for your own training code. The built-in entrypoint uses its own
+`TaskSpec` schema instead (see references/AGENT_TRAINING.md).
 
 ```yaml
 # config/train_config.yaml

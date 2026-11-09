@@ -99,3 +99,13 @@ fault injection or absent service settings cannot establish remote success. The 
 workflow supports explicitly dispatched remote acceptance and uploads JUnit results
 as CI artifacts. Do not commit these outputs or treat old Run receipts as current
 service acceptance.
+
+## Scope of local checks
+
+Standalone acceptance copies only the skill into an unrelated directory and trains and
+reloads with its bundled runtime (`tests/agent_mlops/test_skill_portability.py`).
+Conversation fixtures and executable tests are separate evidence channels: a fixture is
+not an executed conversation, and capability acceptance needs fresh sessions with ordinary
+prompts and the actual assistant/tool traces. For local capability changes use small CPU
+fixtures with tracking off; that work does not authorize remote training, uploads or
+service changes.

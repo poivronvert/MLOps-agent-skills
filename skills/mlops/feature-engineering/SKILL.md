@@ -16,16 +16,6 @@ metadata:
 
 # Feature Engineering for ML
 
-## Features used by the training CLI
-
-Read [Agent training](../model-training/references/AGENT_TRAINING.md) when building features
-for `train_model.py`. The integrated pipeline fits imputers, encoders, scalers and selectors
-inside each training fold and saves them with the model. Do not pre-fit these transformations
-on the full dataset using standalone transformation examples. Temporal history is grouped by
-entity and checked against availability time; rolling endpoints depend on delay, not an
-unconditional shift. Static, historical and future-known forecast roles must be explicit.
-
-
 ## Overview
 
 Feature engineering transforms raw data into informative features that improve model performance.
@@ -311,5 +301,5 @@ See [references/REFERENCE.md](references/REFERENCE.md) for detailed comparisons.
 
 ## Related skills
 
-**Upstream:** `data-validation` (clean, validated data) · **Downstream:** `model-training` (feature matrices) or `feature-store` (reusable feature definitions)
+**Upstream:** `data-validation` (clean, validated data) · **Downstream:** `model-training` (feature matrices; its built-in entrypoint fits imputers, encoders and scalers inside each fold itself, so give it raw features rather than pre-transformed ones) or `feature-store` (reusable feature definitions)
 **See also:** `data-validation` to re-check transformed outputs · `ml-experiment-tracking` to version feature pipelines alongside runs

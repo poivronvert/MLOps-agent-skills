@@ -15,18 +15,12 @@ metadata:
 
 # ML Experiment Tracking
 
-## Tracking for the integrated training CLI
+## Tracking for the model-training entrypoint
 
-For CSV/Parquet tabular, window-event or recursive forecast jobs, use
-[Agent training](../model-training/references/AGENT_TRAINING.md). Its shared
-`agent_mlops.tracking.Tracker` is an explicit off/HTTP(S)-remote client with preflight,
-parent/trial links, official MLflow models and stop-on-recording-failure behavior.
-Use platform-provided URI/authentication; do not deploy a server or silently select a local
-store. The administrative wrapper and generic examples below do not replace this contract.
-Training saves joblib predictors inside official Models From Code PythonModel artifacts
-and uses `mlflow.pyfunc.log_model` for remote runs.
-Load the returned model URI with `mlflow.pyfunc.load_model`; registration and aliases are
-separate operations. See Agent training for output schemas and failure states.
+The `model-training` skill's built-in entrypoint has its own tracking (`tracking: off` or an
+HTTP(S) remote MLflow service, parent/trial runs, official pyfunc models, stop on recording
+failure); see its `references/AGENT_TRAINING.md`. The wrapper and examples below are for
+your own training code.
 
 ### Generic wrapper model logging
 

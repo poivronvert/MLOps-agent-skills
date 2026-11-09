@@ -121,20 +121,6 @@ def default_tags() -> Dict[str, str]:
 # ExperimentTracker
 # ---------------------------------------------------------------------------
 
-def training_tracker(task_spec):
-    """Return the shared off/remote training client; no store is created here."""
-    from pathlib import Path
-    import sys
-    script = Path(__file__).resolve()
-    source = script.parents[4] / "src"
-    if not (source / "agent_mlops").is_dir():
-        source = script.parents[2] / "model-training/runtime/src"
-    if (source / "agent_mlops").is_dir():
-        sys.path.insert(0, str(source))
-    from agent_mlops.tracking import Tracker
-    return Tracker(task_spec)
-
-
 class ExperimentTracker:
     """High-level wrapper around MLflow for structured experiment tracking."""
 

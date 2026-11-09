@@ -19,12 +19,12 @@ metadata:
 
 ## Continuing an already-understood training task
 
-For a training request, reuse visible confirmations and ordinary data documentation.
-Follow [the training intake and execution reference](../model-training/references/AGENT_TRAINING.md)
-for A01–A11. Ask only about unknowns that change labels, sample grain, legal features or
-validation. Compute data facts with tools; exclude unnecessary unclear fields with reasons.
-Neither this skill, the full architecture checklist nor a formal EDA is a training prerequisite.
-A vague “predict equipment failure one hour ahead” needs event/window semantics before fit.
+This skill is not a prerequisite for training. When the conversation or documents already
+define the problem, reuse those confirmations and go to `model-training`. Compute data facts
+with tools; ask only about unknowns that change labels, sample grain, legal features or
+validation; exclude unnecessary unclear fields with a recorded reason. A vague "predict
+equipment failure one hour ahead" still needs its event and window meaning settled before
+fitting (see `model-training` references/TEMPORAL_VALIDATION.md §1).
 
 
 ## Overview
